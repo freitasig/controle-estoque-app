@@ -212,34 +212,50 @@ with aba_painel:
 with aba_operacao:
     df = listar_produtos()
     if not df.empty:
-        col_s, col_e = st.columns(2)
-        with col_s:
-            with st.container(border=True):
-                st.subheader("📤 Registrar Saída")
-                ops = dict(zip(df["nome"], df["id"]))
-                sel = st.selectbox("Produto", list(ops.keys()), key="s_p")
-                id_p = ops[sel]
-                max_s = int(df.loc[df["id"]==id_p, "saldo_atual"].values[0])
-                q = st.number_input("Quantidade", min_value=1, max_value=max(max_s, 1), key="s_q")
-                if st.button("Confirmar Saída", type="primary"):
-                    with get_conn() as conn:
-                        conn.execute("UPDATE produtos SET saldo_atual = saldo_atual - ? WHERE id = ?", (q, id_p))
-                        data = datetime.now(ZoneInfo("America/Fortaleza")).strftime("%d/%m/%Y %H:%M")
-                        conn.execute("INSERT INTO movimentacoes (id_produto, data_hora, tipo, quantidade, saldo_resultante) VALUES (?, ?, 'Saída', ?, ?)", (id_p, data, -q, max_s - q))
-                    sincronizar_tudo()
-                    st.rerun()
+        col_e, col_s = st.columns(2) # Invertido: Entrada na esquerda, Saída na direita
+        
         with col_e:
             with st.container(border=True):
                 st.subheader("⬇️ Registrar Entrada")
+                ops = dict(zip(df["nome"], df["id"]))
                 sel_e = st.selectbox("Produto", list(ops.keys()), key="e_p")
                 id_pe = ops[sel_e]
                 sal_e = int(df.loc[df["id"]==id_pe, "saldo_atual"].values[0])
-                qe = st.number_input("Quantidade", min_value=1, key="e_q")
+                
+                c1, c2 = st.columns([1, 2])
+                with c1: 
+                    qe = st.number_input("Quantidade", min_value=1, key="e_q")
+                with c2: 
+                    obs_e = st.text_input("Nota/Fornecedor", key="e_obs")
+                    
                 if st.button("Confirmar Entrada", type="secondary"):
                     with get_conn() as conn:
                         conn.execute("UPDATE produtos SET saldo_atual = saldo_atual + ? WHERE id = ?", (qe, id_pe))
                         data = datetime.now(ZoneInfo("America/Fortaleza")).strftime("%d/%m/%Y %H:%M")
-                        conn.execute("INSERT INTO movimentacoes (id_produto, data_hora, tipo, quantidade, saldo_resultante) VALUES (?, ?, 'Entrada', ?, ?)", (id_pe, data, qe, sal_e + qe))
+                        # Inserção incluindo a observação
+                        conn.execute("INSERT INTO movimentacoes (id_produto, data_hora, tipo, quantidade, saldo_resultante, observacao) VALUES (?, ?, 'Entrada', ?, ?, ?)", (id_pe, data, qe, sal_e + qe, obs_e))
+                    sincronizar_tudo()
+                    st.rerun()
+
+        with col_s:
+            with st.container(border=True):
+                st.subheader("📤 Registrar Saída")
+                sel = st.selectbox("Produto ", list(ops.keys()), key="s_p")
+                id_p = ops[sel]
+                max_s = int(df.loc[df["id"]==id_p, "saldo_atual"].values[0])
+                
+                c1, c2 = st.columns([1, 2])
+                with c1: 
+                    q = st.number_input("Quantidade", min_value=1, max_value=max(max_s, 1), key="s_q")
+                with c2: 
+                    obs_s = st.text_input("Observação/Destino", key="s_obs")
+                    
+                if st.button("Confirmar Saída", type="primary"):
+                    with get_conn() as conn:
+                        conn.execute("UPDATE produtos SET saldo_atual = saldo_atual - ? WHERE id = ?", (q, id_p))
+                        data = datetime.now(ZoneInfo("America/Fortaleza")).strftime("%d/%m/%Y %H:%M")
+                        # Inserção incluindo a observação
+                        conn.execute("INSERT INTO movimentacoes (id_produto, data_hora, tipo, quantidade, saldo_resultante, observacao) VALUES (?, ?, 'Saída', ?, ?, ?)", (id_p, data, -q, max_s - q, obs_s))
                     sincronizar_tudo()
                     st.rerun()
 
