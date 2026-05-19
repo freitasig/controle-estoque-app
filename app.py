@@ -182,14 +182,14 @@ with aba_painel:
     if not df.empty:
         df["valor_total"] = df["saldo_atual"] * df["valor_unitario"]
         
-        # Coleta de consumo histórico baseado nas baixas
+       # Coleta de consumo histórico baseado nas baixas
         with get_conn() as conn:
             cons = pd.read_sql("""
                 SELECT id_produto, SUM(ABS(quantidade)) as total 
                 FROM movimentacoes 
-                WHERE tipo='Saída' OR (tipo='Contagem' AND quantity < 0)
+                WHERE tipo='Saída' OR (tipo='Contagem' AND quantidade < 0)
                 GROUP BY id_produto
-            """, conn)
+            """, conn) 
             
         df = df.merge(cons, left_on='id', right_on='id_produto', how='left').fillna(0)
         df['consumo_diario'] = df['total'] / 30
