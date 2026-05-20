@@ -246,7 +246,7 @@ with aba_painel:
         
         st.dataframe(
             display_df.style.map(destacar_status, subset=['Status']).format({'Preço Médio': 'R$ {:.2f}'}),
-            hide_index=True, use_container_width=True
+            hide_index=True, width='stretch'
         )
 
         # GRÁFICOS NATIVOS DE CONSUMO
@@ -257,10 +257,10 @@ with aba_painel:
         df["total"] = pd.to_numeric(df["total"], errors="coerce").fillna(0)
         
         with g1:
-            st.markdown("##### 🍕 Giro Total (Saídas) por Categoria")
-            giro_setor = df.groupby("categoria")["total"].sum().reset_index()
-            if giro_setor["total"].sum() > 0:
-                st.pie_chart(data=giro_setor, names="categoria", values="total", use_container_width=True)
+            st.markdown("##### 📊 Giro Total (Saídas) por Categoria")
+            giro_setor = df.groupby("categoria")["total"].sum().reset_index().rename(columns={"categoria": "Setor", "total": "Movimentações"})
+            if giro_setor["Movimentações"].sum() > 0:
+                st.bar_chart(data=giro_setor, x="Setor", y="Movimentações", width='stretch')
             else:
                 st.info("Ainda não há registros de saídas para gerar o gráfico de setores.")
                 
@@ -269,7 +269,7 @@ with aba_painel:
             df_consumo_real = df[df["total"] > 0]
             if not df_consumo_real.empty:
                 top_consumo = df_consumo_real.nlargest(5, "total")[["nome", "total"]].rename(columns={"nome": "Insumo", "total": "Quantidade"})
-                st.bar_chart(data=top_consumo, x="Insumo", y="Quantidade", use_container_width=True)
+                st.bar_chart(data=top_consumo, x="Insumo", y="Quantidade", width='stretch')
             else:
                 st.info("Ainda não há consumo registrado para listar o ranking.")
 
@@ -285,7 +285,7 @@ with aba_painel:
         if apenas_compras:
             df_compras = df_compras[df_compras["Sugestão Compra"] > 0]
             
-        st.dataframe(df_compras[["categoria", "nome", "lead_time", "saldo_atual", "Minimo Ideal", "Sugestão Compra"]].rename(columns={"categoria": "Setor", "nome": "Produto", "lead_time": "Entrega(d)", "saldo_atual": "Saldo", "Sugestão Compra": "Comprar"}), hide_index=True, use_container_width=True)
+        st.dataframe(df_compras[["categoria", "nome", "lead_time", "saldo_atual", "Minimo Ideal", "Sugestão Compra"]].rename(columns={"categoria": "Setor", "nome": "Produto", "lead_time": "Entrega(d)", "saldo_atual": "Saldo", "Sugestão Compra": "Comprar"}), hide_index=True, width='stretch')
 
 # OPERAÇÃO (SAÍDAS E ENTRADAS COM INVERSÃO E OBSERVAÇÕES)
 with aba_operacao:
@@ -413,7 +413,7 @@ with aba_contagem:
                 if val < 0: return 'color: #ef4444; font-weight: bold;'
                 if val > 0: return 'color: #10b859; font-weight: bold;'
                 return 'color: #94a3b8;'
-            st.dataframe(hist_inv.style.map(cor_divergencia, subset=['Divergência']), hide_index=True, use_container_width=True)
+            st.dataframe(hist_inv.style.map(cor_divergencia, subset=['Divergência']), hide_index=True, width='stretch')
         else:
             st.info("Nenhum histórico encontrado para o filtro selecionado.")
 
@@ -445,23 +445,19 @@ with aba_ia:
                     st.write(mod.generate_content(prompt).text)
                 except Exception as e: st.error(f"Erro IA: {e}")
 
-# HISTÓRICO (MELHORIA 1: GRÁFICO DE EVOLUÇÃO DE PREÇOS INTEGRADO)
+# HISTÓRICO
 with aba_historico:
     st.subheader("📜 Histórico de Movimentações")
     mv = listar_movimentacoes()
     df_p = listar_produtos()
     
     if not mv.empty:
-        # Bloco de análise de custos por item específico
         st.markdown("##### 📈 Gráfico de Auditoria e Evolução de Preços")
         if not df_p.empty:
             item_analise = st.selectbox("Selecione o Insumo para ver a Curva de Custos:", list(df_p["nome"].unique()))
-            
-            # Filtra as entradas do produto e limpa a string para pegar o valor decimal real pago
             entradas_item = mv[(mv["produto"] == item_analise) & (mv["tipo"] == "Entrada")].copy()
             
             if not entradas_item.empty:
-                # Extrai o valor pago de dentro da string de observação (ex: "Pago: R$ 5.20/un")
                 def extrair_preco(obs):
                     try:
                         if "Pago: R$" in str(obs):
@@ -474,9 +470,8 @@ with aba_historico:
                 entradas_item = entradas_item.dropna(subset=["Preço de Compra (R$)"])
                 
                 if not entradas_item.empty:
-                    # Inverte a ordem para ficar cronológica (da mais antiga para a mais nova)
                     entradas_item = entradas_item.iloc[::-1]
-                    st.line_chart(data=entradas_item, x="data_hora", y="Preço de Compra (R$)", use_container_width=True)
+                    st.line_chart(data=entradas_item, x="data_hora", y="Preço de Compra (R$)", width='stretch')
                 else:
                     st.info("Este item possui entradas registradas, mas nenhuma com o novo sistema de preços médios ponderados.")
             else:
@@ -549,9 +544,12 @@ with aba_gestao:
             confirmar_exclusao = st.checkbox("Confirmo que verifiquei os dados e pretendo apagar este insumo e o seu histórico definitivamente.", key="del_check")
             
             if st.button("🗑️ Eliminar Definitivamente", type="primary", disabled=not confirmar_exclusao, key="del_btn"):
-                deletar_produto(id_d)
-                disparar_sincronizacao()
-                st.toast(f"🗑️ Item '{s_d}' foi completamente deletado do cadastro.", icon="🗑️")
-                st.rerun()
+                try:
+                    deletar_produto(id_d)
+                    disparar_sincronizacao()
+                    st.toast(f"🗑️ Item '{s_d}' foi completamente deletado do cadastro.", icon="🗑️")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao deletar produto: {e}")
         else:
-            st.info("Nenum produto cadastrado para exclusão.")
+            st.info("Nenhum produto cadastrado para exclusão.")
